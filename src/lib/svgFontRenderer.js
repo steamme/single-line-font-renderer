@@ -172,47 +172,58 @@ exports.renderTextSVG = function(text, rawOptions = {}) {
         `scale(${options.scale}) translate(${options.pos.x}, ${options.pos.y})`
     });
 
-    // Initial Line container
-    const lineCount = 0;
-    const $groupLine = $('<g>').attr('id', options.id + '-line-' + lineCount);
-    $textGroup.prepend($groupLine);
+    // Line height from font metrics; charHeightAdjust allows caller to tune spacing
+    const lineHeight = parseInt(font.info['units-per-em'], 10) + options.charHeightAdjust;
 
-    // Move through each word
-    const words = text.split(' ');
-    for(let w in words) {
-      const word = words[w];
+    // Normalize CRLF, then split into lines
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
 
-      // Move through each letter
-      for(let i in word) {
-    
-        const rawChar = word[i];
-        const char = font.getChar(rawChar);
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const $groupLine = $('<g>').attr({
+        id: options.id + '-line-' + lineIndex,
+        transform: `translate(0, ${lineIndex * lineHeight})`
+      });
+      $textGroup.append($groupLine);
 
-        // Only print in range chars
-        if (char) {
-          const $path = $('<path>').attr({
-            d: char.d,
-            stroke: 'black',
-            'stroke-width': 1,
-            fill: 'none',
-            transform: `translate(${offset.left}, ${offset.top})`,
-            letter: word[i]
-          });
+      offset.left = 0;
+      const words = lines[lineIndex].split(' ');
 
-          if (font.type === 'svg') {
-            $path.attr('transform', `translate(${offset.left}, ${font.info['units-per-em']}) scale(1, -1)`);
+      // Move through each word
+      for(let w in words) {
+        const word = words[w];
+
+        // Move through each letter
+        for(let i in word) {
+
+          const rawChar = word[i];
+          const char = font.getChar(rawChar);
+
+          // Only print in range chars
+          if (char) {
+            const $path = $('<path>').attr({
+              d: char.d,
+              stroke: 'black',
+              'stroke-width': 1,
+              fill: 'none',
+              transform: `translate(${offset.left}, ${offset.top})`,
+              letter: word[i]
+            });
+
+            if (font.type === 'svg') {
+              $path.attr('transform', `translate(${offset.left}, ${font.info['units-per-em']}) scale(1, -1)`);
+            }
+
+            // Add the char to the DOM group.
+            $groupLine.append($path).append($('</path>'));
+
+            // Position next character.
+            offset.left += (char.width * multiplyer) + options.charSpacingAdjust;
           }
-
-          // Add the char to the DOM group.
-          $groupLine.append($path).append($('</path>'));
-
-          // Position next character.
-          offset.left += (char.width * multiplyer) + options.charSpacingAdjust;
         }
-      }
 
-      // Word boundary: Add a space.
-      offset.left+= parseInt(font.info['horiz-adv-x'], 10) + options.charSpacingAdjust;
+        // Word boundary: Add a space.
+        offset.left += parseInt(font.info['horiz-adv-x'], 10) + options.charSpacingAdjust;
+      }
     }
 
   } catch(e) {
