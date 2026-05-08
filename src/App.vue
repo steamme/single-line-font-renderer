@@ -353,6 +353,8 @@ export default {
       smoothingTypes: ["catmull-rom", "geometric", "continuous", "asymmetric"],
       smoothingType: "catmull-rom",
       smoothingFactor: 0.5,
+      enableResampling: false,
+      resamplingInterval: 5,
       right: null,
       rawSvgContent: null,
       displayedSvgContent: null,
