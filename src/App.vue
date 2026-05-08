@@ -553,7 +553,7 @@ export default {
       paper.project.importSVG(
         `${header}\n${this.rawSvgContent}\n${footer}`,
         (item) => {
-          if (!this.enableFontSimplification && !this.enableFontSmoothing)
+          if (!this.enableResampling && !this.enableFontSimplification && !this.enableFontSmoothing)
             return;
 
           const letterPaths = item.children[0].children[0].children;
@@ -561,6 +561,8 @@ export default {
           letterPaths.forEach((element) => {
             // When handwriting is enabled each character is wrapped in a <g>; unwrap it
             const path = element.className === 'Group' ? element.children[0] : element;
+            if (this.enableResampling)
+              path.flatten(this.resamplingInterval);
             if (this.enableFontSimplification)
               path.simplify(this.simplifyFactor);
             if (this.enableFontSmoothing)
