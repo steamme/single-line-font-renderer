@@ -84,6 +84,34 @@
 
                 <v-checkbox
                   @change="applyFontSettings(true)"
+                  v-model="enableResampling"
+                  label="Resample"
+                  dense
+                  class="ma-0"
+                ></v-checkbox>
+                <div v-if="enableResampling">
+                  <v-subheader>Resample Interval</v-subheader>
+                  <v-slider
+                    @input="applyFontSettings(true)"
+                    v-model="resamplingInterval"
+                    step="0.5"
+                    max="20"
+                    min="0.5"
+                  >
+                    <template v-slot:append>
+                      <v-text-field
+                        v-model="resamplingInterval"
+                        class="mt-0 pt-0"
+                        type="number"
+                        style="width: 45px"
+                        dense
+                      ></v-text-field>
+                    </template>
+                  </v-slider>
+                </div>
+
+                <v-checkbox
+                  @change="applyFontSettings(true)"
                   v-model="enableFontSimplification"
                   label="Simplify"
                   dense
