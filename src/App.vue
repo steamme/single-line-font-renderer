@@ -150,6 +150,66 @@
               </div>
             </template>
 
+            <v-btn v-if="!showHandwriting" class="mb-2 mt-2" small block text @click="showHandwriting = true">handwriting variation</v-btn>
+            <template v-else>
+              <div class="mt-2 mb-0">
+                <v-subheader class="mb-2">Handwriting variation</v-subheader>
+                <v-switch
+                  v-model="handwriting.enabled"
+                  label="Enable"
+                  dense
+                  hide-details
+                  class="ma-0 mb-3"
+                  @change="render"
+                ></v-switch>
+
+                <template v-if="handwriting.enabled">
+                  <v-subheader>Intensity</v-subheader>
+                  <v-slider
+                    @input="render"
+                    v-model="handwriting.intensity"
+                    step="0.01"
+                    max="10"
+                    min="0"
+                  >
+                    <template v-slot:append>
+                      <v-text-field
+                        v-model="handwriting.intensity"
+                        class="mt-0 pt-0"
+                        type="number"
+                        style="width: 45px"
+                        dense
+                      ></v-text-field>
+                    </template>
+                  </v-slider>
+
+                  <v-row class="mx-0 mb-1" align="center">
+                    <v-col class="pa-0 pr-2 flex-grow-1">
+                      <v-text-field
+                        :value="handwriting.lastSeed"
+                        label="Seed"
+                        dense
+                        readonly
+                        outlined
+                        hide-details
+                        class="mt-0 pt-0"
+                      ></v-text-field>
+                    </v-col>
+                    <v-col class="pa-0 flex-grow-0">
+                      <v-btn small @click="rerollHandwriting">Re-roll</v-btn>
+                    </v-col>
+                  </v-row>
+                  <v-checkbox
+                    v-model="handwriting.lockSeed"
+                    label="Lock seed"
+                    dense
+                    hide-details
+                    class="ma-0 mb-3"
+                  ></v-checkbox>
+                </template>
+              </div>
+            </template>
+
             <v-divider class="mt-1 mb-6"></v-divider>
 
             <div>
@@ -280,6 +340,13 @@ export default {
       strokeWeight: 1,
       fontScale: 1,
       showFontSmoothing: false,
+      showHandwriting: false,
+      handwriting: {
+        enabled: false,
+        intensity: 0.5,
+        lockSeed: false,
+        lastSeed: null,
+      },
       enableFontSimplification: false,
       simplifyFactor: 0,
       enableFontSmoothing: false,
@@ -381,13 +448,24 @@ export default {
       };
     },
     render() {
+      const handwritingOptions = this.handwriting.enabled ? {
+        enabled: true,
+        intensity: this.handwriting.intensity,
+        seed: this.handwriting.lockSeed ? this.handwriting.lastSeed : null,
+      } : { enabled: false };
+
       this.displayedSvgContent = this.rawSvgContent = svgFontRenderer.renderTextSVG(
         this.text,
         {
-          font: this.useCustomFont && this.customFont?.fontName? this.customFont.fontName : this.selectedFont.fontName,
+          font: this.useCustomFont && this.customFont?.fontName ? this.customFont.fontName : this.selectedFont.fontName,
           scale: 0.1,
+          handwriting: handwritingOptions,
         }
       );
+
+      if (this.handwriting.enabled) {
+        this.handwriting.lastSeed = svgFontRenderer.lastUsedSeed;
+      }
 
       // wait for next tick when svg has rendered
       this.$nextTick(() => {
@@ -450,7 +528,9 @@ export default {
 
           const letterPaths = item.children[0].children[0].children;
 
-          letterPaths.forEach((path) => {
+          letterPaths.forEach((element) => {
+            // When handwriting is enabled each character is wrapped in a <g>; unwrap it
+            const path = element.className === 'Group' ? element.children[0] : element;
             if (this.enableFontSimplification)
               path.simplify(this.simplifyFactor);
             if (this.enableFontSmoothing)
@@ -482,7 +562,11 @@ export default {
       a.click();
       window.URL.revokeObjectURL(url);
     },
-    async reset() {    
+    rerollHandwriting() {
+      this.handwriting.lockSeed = false;
+      this.render();
+    },
+    async reset() {
       this.selectedFontName = defaults.selectedFontName;
       await this.selectFont();
       this.render();

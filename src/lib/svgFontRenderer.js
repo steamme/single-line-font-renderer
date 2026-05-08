@@ -13,7 +13,25 @@ const cheerio = require('cheerio');
 // exports.fonts = require('../hersheytext.min.json');
 // exports.svgFonts = require('../svg_fonts/index.json');
 
-exports.svgFonts = []
+exports.svgFonts = [];
+exports.lastUsedSeed = null;
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function perturbPath(d, maxNoise, rng) {
+  if (!d) return d;
+  return d.replace(/(-?\d*\.?\d+)/g, (match) => {
+    const noise = (rng() - 0.5) * 2 * maxNoise;
+    return (parseFloat(match) + noise).toFixed(2);
+  });
+}
 
 // Rewrite internal reference filename for SVG fonts to the absolute path.
 // Object.entries(exports.svgFonts).forEach(([key, item]) => {
@@ -153,6 +171,16 @@ exports.renderTextSVG = function(text, rawOptions = {}) {
     ...rawOptions,
   };
 
+  const hw = options.handwriting || { enabled: false };
+  let rng = null;
+  if (hw.enabled) {
+    const seed = (hw.seed != null) ? hw.seed : (Math.random() * 100000 | 0);
+    exports.lastUsedSeed = seed;
+    rng = mulberry32(seed);
+  } else {
+    exports.lastUsedSeed = null;
+  }
+
   // Prep SVG export.
   const $ = cheerio.load('<g>', { xmlMode: true }); // Initial DOM
 
@@ -200,21 +228,46 @@ exports.renderTextSVG = function(text, rawOptions = {}) {
 
           // Only print in range chars
           if (char) {
-            const $path = $('<path>').attr({
-              d: char.d,
-              stroke: 'black',
-              'stroke-width': 1,
-              fill: 'none',
-              transform: `translate(${offset.left}, ${offset.top})`,
-              letter: word[i]
-            });
+            if (font.type === 'svg' && hw.enabled && rng) {
+              const unitsPerEm = parseInt(font.info['units-per-em'], 10);
+              const intensity = hw.intensity != null ? hw.intensity : 0.5;
+              const pivotX = char.width / 2;
+              const pivotY = unitsPerEm / 2;
+              const dy = (rng() - 0.5) * 2 * intensity * unitsPerEm * 0.04;
+              const angle = (rng() - 0.5) * 2 * intensity * 5;
+              const dscale = 1 + (rng() - 0.5) * 2 * intensity * 0.06;
+              const pathNoise = intensity * unitsPerEm * 0.01;
+              const perturbedD = perturbPath(char.d, pathNoise, rng);
 
-            if (font.type === 'svg') {
-              $path.attr('transform', `translate(${offset.left}, ${font.info['units-per-em']}) scale(1, -1)`);
+              const $wrapper = $('<g>').attr('transform',
+                `translate(${offset.left + pivotX}, ${dy + pivotY}) rotate(${angle}) scale(${dscale}) translate(${-pivotX}, ${-pivotY})`
+              );
+              const $path = $('<path>').attr({
+                d: perturbedD,
+                stroke: 'black',
+                'stroke-width': 1,
+                fill: 'none',
+                transform: `translate(0, ${font.info['units-per-em']}) scale(1, -1)`,
+                letter: word[i]
+              });
+              $wrapper.append($path);
+              $groupLine.append($wrapper);
+            } else {
+              const $path = $('<path>').attr({
+                d: char.d,
+                stroke: 'black',
+                'stroke-width': 1,
+                fill: 'none',
+                transform: `translate(${offset.left}, ${offset.top})`,
+                letter: word[i]
+              });
+
+              if (font.type === 'svg') {
+                $path.attr('transform', `translate(${offset.left}, ${font.info['units-per-em']}) scale(1, -1)`);
+              }
+
+              $groupLine.append($path).append($('</path>'));
             }
-
-            // Add the char to the DOM group.
-            $groupLine.append($path).append($('</path>'));
 
             // Position next character.
             offset.left += (char.width * multiplyer) + options.charSpacingAdjust;
